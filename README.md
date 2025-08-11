@@ -1,2 +1,7 @@
 # Stellify - Star Map Generator
 Stellify is an application used to generate star maps. Created for CAB432. Based on guide created by Summer (2023): https://levelup.gitconnected.com/how-to-use-python-to-create-custom-star-maps-for-your-next-stargazing-journey-9908b421f30e
+
+## Example Star Map PNG
+![png](https://i.postimg.cc/mgxKPwvk/New-York-USA-20250810-0000.png)
+## Example Star Map GIF
+![gif](https://i.postimg.cc/xChVtS4y/New-York-USA-20250810-0000.gif)
