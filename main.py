@@ -1,16 +1,20 @@
+import io
+import json
+import multiprocessing
+import os
+from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime, timedelta
+from pathlib import Path
+
+import imageio
 import matplotlib.pyplot as plt
-from skyfield.api import load, Star, wgs84
+import requests
+from geopy import Nominatim
+from pytz import timezone, utc
+from skyfield.api import Star, load, wgs84
 from skyfield.data import hipparcos
 from skyfield.projections import build_stereographic_projection
-from geopy import Nominatim
-from datetime import datetime, timedelta
-from pytz import timezone, utc
-import requests
-import os
-import json
-from pathlib import Path
-import imageio
-import io
+
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -139,34 +143,35 @@ def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_sta
         output_path = OUTPUT_DIR / filename
     fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
 
-def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
-    times = []
+def _generate_frame(args):
+    location, when_str, chart_size, max_star_size = args
+    fig = generate_star_map(location, when_str, chart_size, max_star_size)
 
-    # Calculate the start time and total frames
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)  # prevent memory bloat
+
+    return imageio.v2.imread(buf)
+
+def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
     start_dt = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
     total_frames = int((hours * 60) / step_minutes)
+    times = [start_dt + timedelta(minutes=i * step_minutes) for i in range(total_frames)]
 
-    # Calculate the time steps
-    for i in range(total_frames):
-        times.append(start_dt + timedelta(minutes=i * step_minutes))
+    # Prepare arguments for each process
+    args_list = [
+        (location, t.strftime('%Y-%m-%d %H:%M:%S'), chart_size, max_star_size)
+        for t in times
+    ]
 
-    images = []
+    # Use all CPU cores
+    cpu_count = multiprocessing.cpu_count()
+    with ProcessPoolExecutor(max_workers=cpu_count) as executor:
+        images = list(executor.map(_generate_frame, args_list))
 
-    # Generate star maps for each time step
-    for t in times:
-        when_str = t.strftime('%Y-%m-%d %H:%M:%S')
-        fig = generate_star_map(location, when_str, chart_size, max_star_size)
-
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
-        buf.seek(0)
-
-        img = imageio.v2.imread(buf)
-        images.append(img)
-
-    # Save the images as a GIF
+    # Save as GIF
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
-    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
+    filename = f"{location}_{start_dt.strftime('%Y%m%d_%H%M')}.gif"
     gif_path = OUTPUT_DIR / filename
     imageio.mimsave(gif_path, images, duration=step_minutes * 60 / 10)
