@@ -5,4 +5,4 @@ Stellify is an application used to generate star maps based on inputted location
 <img src="https://i.postimg.cc/pLB6x7Lj/New-York-USA-20250812-0000.png" width=50% height=50%/>
 
 ## Example Star Map GIF
-<img src="https://i.postimg.cc/qRB04yrJ/New-York-USA-20250812-0000.gif"/>
+<img src="https://i.postimg.cc/qRB04yrJ/New-York-USA-20250812-0000.gif" width=50% height=50%/>
