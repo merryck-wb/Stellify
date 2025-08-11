@@ -1,7 +1,6 @@
 import io
 import json
 import multiprocessing
-import os
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -11,7 +10,7 @@ import matplotlib.pyplot as plt
 import requests
 from geopy import Nominatim
 from pytz import timezone, utc
-from skyfield.api import Star, load, wgs84
+from skyfield.api import Star, load, Loader, wgs84
 from skyfield.data import hipparcos
 from skyfield.projections import build_stereographic_projection
 
@@ -23,8 +22,6 @@ CACHE_FILE = BASE_DIR / "location_cache.json"
 
 DEFAULT_CHART_SIZE = 12
 DEFAULT_MAX_STAR_SIZE = 100
-
-from skyfield.api import Loader
 
 def load_data():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -40,33 +37,41 @@ def load_data():
     return eph, stars
 
 def get_coordinates(location):
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as f:
-            cache = json.load(f)
-    else:
-        cache = {}
+    cache = {}
+    # Check if cache file exists and load it
+    if CACHE_FILE.exists():
+        try:
+            cache = json.loads(CACHE_FILE.read_text())
+        except json.JSONDecodeError:
+            pass  # corrupt cache — just rebuild
 
+    # If location is already cached, return it
     if location in cache:
-        return cache[location]
+        return tuple(cache[location])
 
-    # Get coordinates using geopy Nominatim
+    # Use geopy to get coordinates from location name
     locator = Nominatim(user_agent='star_map_locator')
     loc = locator.geocode(location)
+    if not loc:
+        raise ValueError(f"Location '{location}' not found")
     coords = (loc.latitude, loc.longitude)
 
-    # Cache the coordinates
+    # Save the coordinates to cache
     cache[location] = coords
-    with open(CACHE_FILE, "w") as f:
-        json.dump(cache, f)
-
+    CACHE_FILE.write_text(json.dumps(cache))
     return coords
 
 def get_timezone(lat, lon):
     # Use timeapi.io to get timezone from coordinates
     url = f"https://timeapi.io/api/TimeZone/coordinate?latitude={lat}&longitude={lon}"
-    response = requests.get(url).json()
-    return response["timeZone"]
-
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        return data["timeZone"]
+    except (requests.RequestException, KeyError) as e:
+        raise RuntimeError(f"Failed to retrieve timezone data")
+    
 def collect_celestial_data(location, when):
     eph, stars = load_data()
 
@@ -142,6 +147,7 @@ def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_sta
         filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
         output_path = OUTPUT_DIR / filename
     fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
+    plt.close(fig)
 
 def _generate_frame(args):
     location, when_str, chart_size, max_star_size = args
@@ -150,7 +156,7 @@ def _generate_frame(args):
     buf = io.BytesIO()
     fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
     buf.seek(0)
-    plt.close(fig)  # prevent memory bloat
+    plt.close(fig)
 
     return imageio.v2.imread(buf)
 
