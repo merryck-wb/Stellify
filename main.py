@@ -170,6 +170,3 @@ def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAUL
     filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
     gif_path = OUTPUT_DIR / filename
     imageio.mimsave(gif_path, images, duration=step_minutes * 60 / 10)
-
-generate_star_map_png("New York, USA", "2023-10-01 22:00:00")
-generate_star_map_gif("New York, USA", "2023-10-01 22:00:00", hours=1, step_minutes=10)
