@@ -3,17 +3,22 @@ from skyfield.api import load, Star, wgs84
 from skyfield.data import hipparcos
 from skyfield.projections import build_stereographic_projection
 from geopy import Nominatim
-from datetime import datetime
+from datetime import datetime, timedelta
 from pytz import timezone, utc
 import requests
 import os
 import json
 from pathlib import Path
+import imageio
+import io
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 OUTPUT_DIR = BASE_DIR / "output"
 CACHE_FILE = BASE_DIR / "location_cache.json"
+
+DEFAULT_CHART_SIZE = 12
+DEFAULT_MAX_STAR_SIZE = 100
 
 from skyfield.api import Loader
 
@@ -76,7 +81,7 @@ def collect_celestial_data(location, when):
 
     return stars
 
-def generate_star_map(location, when, chart_size, max_star_size):
+def generate_star_map(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
     stars = collect_celestial_data(location, when)
 
     limiting_magnitude = 6.5
@@ -97,13 +102,56 @@ def generate_star_map(location, when, chart_size, max_star_size):
     plt.axis('off')
 
     when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
-    plt.title(
-        f"Observation Location: {location}, Time: {when_datetime.strftime('%Y-%m-%d %H:%M')}", 
-        loc='right',
-        color = 'white',
-        fontsize=10)
+    ax.set_title(
+        f"Observation Location: {location}\nTime: {when_datetime.strftime('%Y-%m-%d %H:%M')}",
+        color='white',
+        fontsize=10
+    )
+
+    return fig
+
+def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE, output_path=None):
+    fig = generate_star_map(location, when, chart_size, max_star_size)
+    if output_path is None:
+        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
+        filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
+        output_path = OUTPUT_DIR / filename
+    fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
+    plt.close(fig)
+
+def generate_star_map_gif(location, start_time, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
+    times = []
+    start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+    total_frames = int((hours * 60) / step_minutes)
+
+    for i in range(total_frames):
+        times.append(start_dt + timedelta(minutes=i * step_minutes))
+
+    images = []
+
+    for t in times:
+        when_str = t.strftime('%Y-%m-%d %H:%M:%S')
+        fig = generate_star_map(location, when_str, chart_size, max_star_size)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+        plt.close(fig)
+        buf.seek(0)
+
+        img = imageio.v2.imread(buf)
+        images.append(img)
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
-    save_path = OUTPUT_DIR / filename
-    plt.savefig(save_path, format='png', dpi=1200, bbox_inches='tight')
+    when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
+    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
+    gif_path = OUTPUT_DIR / filename
+
+    imageio.mimsave(gif_path, images, duration=step_minutes * 60 / 10)
+
+if __name__ == "__main__":
+    location = "New York, USA"
+    start_time = "2025-08-10 00:00:00"
+    hours = 24
+    step_minutes = 5
+    generate_star_map_gif(location, start_time, hours, step_minutes)
