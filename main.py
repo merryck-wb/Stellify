@@ -33,8 +33,22 @@ def load_data():
     # hipparcos dataset
     with loader.open(hipparcos.URL) as f:
         stars = hipparcos.load_dataframe(f)
+    # Load constellations data from Stellarium
+    # This is a URL to the modern constellation data in JSON format
+    url = 'https://raw.githubusercontent.com/Stellarium/stellarium/master/skycultures/modern_st/index.json'
+    response = requests.get(url)
+    response.raise_for_status()
+    data = response.json()
+    
+    # Extract constellation lines
+    edges = []
+    for constellation in data.get('constellations', []):
+        lines = constellation.get('lines', [])
+        for line in lines:
+            for i in range(len(line) - 1):
+                edges.append((line[i], line[i + 1]))
 
-    return eph, stars
+    return eph, stars, edges
 
 def get_coordinates(location):
     cache = {}
@@ -73,7 +87,7 @@ def get_timezone(lat, lon):
         raise RuntimeError(f"Failed to retrieve timezone data")
     
 def collect_celestial_data(location, when):
-    eph, stars = load_data()
+    eph, stars, edges = load_data()
 
     # Get coordinates for the location
     lat, lon = get_coordinates(location)
@@ -100,10 +114,15 @@ def collect_celestial_data(location, when):
     stars['x'] = x
     stars['y'] = y
 
-    return stars
+    # Create edges for constellations
+    valid_edges = [(s1, s2) for s1, s2 in edges if s1 in stars.index and s2 in stars.index]
+    edges_star1 = [s1 for s1, s2 in valid_edges]
+    edges_star2 = [s2 for s1, s2 in valid_edges]
+
+    return stars, edges_star1, edges_star2
 
 def generate_star_map(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
-    stars = collect_celestial_data(location, when)
+    stars, edges_star1, edges_star2 = collect_celestial_data(location, when)
 
     # Define the number of stars and brightness of stars to include
     limiting_magnitude = 10
@@ -119,6 +138,11 @@ def generate_star_map(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_si
         stars['x'][bright_stars], stars['y'][bright_stars],
         s=marker_size, color='white', marker='.', linewidth=0, zorder=2
     )
+    # Draw the constellation lines
+    xy1 = stars.loc[edges_star1][['x', 'y']].values
+    xy2 = stars.loc[edges_star2][['x', 'y']].values
+    for (x1, y1), (x2, y2) in zip(xy1, xy2):
+        ax.plot([x1, x2], [y1, y2], color='white', lw=0.15, alpha=0.7, zorder=3)
 
     # Various settings for the plot
     ax.set_aspect('equal')
