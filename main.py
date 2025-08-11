@@ -120,9 +120,9 @@ def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_sta
     fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
     plt.close(fig)
 
-def generate_star_map_gif(location, start_time, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
+def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
     times = []
-    start_dt = datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+    start_dt = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
     total_frames = int((hours * 60) / step_minutes)
 
     for i in range(total_frames):
@@ -148,10 +148,3 @@ def generate_star_map_gif(location, start_time, hours, step_minutes, chart_size=
     gif_path = OUTPUT_DIR / filename
 
     imageio.mimsave(gif_path, images, duration=step_minutes * 60 / 10)
-
-if __name__ == "__main__":
-    location = "New York, USA"
-    start_time = "2025-08-10 00:00:00"
-    hours = 24
-    step_minutes = 5
-    generate_star_map_gif(location, start_time, hours, step_minutes)
