@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import imageio
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import requests
 from geopy import Nominatim
@@ -160,16 +162,15 @@ def generate_star_map(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_si
 
     return fig
 
-def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE, output_path=None):
+def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
     # Generate the star map figure
     fig = generate_star_map(location, when, chart_size, max_star_size)
 
     # Save the figure to a PNG file
-    if output_path is None:
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
-        filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
-        output_path = OUTPUT_DIR / filename
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
+    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
+    output_path = OUTPUT_DIR / filename
     fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
     plt.close(fig)
 
@@ -185,23 +186,21 @@ def _generate_frame(args):
     return imageio.v2.imread(buf)
 
 def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
-    start_dt = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
+    when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
     total_frames = int((hours * 60) / step_minutes)
-    times = [start_dt + timedelta(minutes=i * step_minutes) for i in range(total_frames)]
+    times = [when_datetime + timedelta(minutes=i * step_minutes) for i in range(total_frames)]
 
-    # Prepare arguments for each process
     args_list = [
         (location, t.strftime('%Y-%m-%d %H:%M:%S'), chart_size, max_star_size)
         for t in times
     ]
 
-    # Use all CPU cores
-    cpu_count = multiprocessing.cpu_count()
-    with ProcessPoolExecutor(max_workers=cpu_count) as executor:
-        images = list(executor.map(_generate_frame, args_list))
-
-    # Save as GIF
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{location}_{start_dt.strftime('%Y%m%d_%H%M')}.gif"
+    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
     gif_path = OUTPUT_DIR / filename
-    imageio.mimsave(gif_path, images, duration=step_minutes * 60 / 10)
+
+    cpu_count = multiprocessing.cpu_count()
+    with imageio.get_writer(gif_path, mode='I', duration=step_minutes * 60 / 10) as writer:
+        with ProcessPoolExecutor(max_workers=cpu_count) as executor:
+            for frame in executor.map(_generate_frame, args_list):
+                writer.append_data(frame)
