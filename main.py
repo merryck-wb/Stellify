@@ -224,11 +224,3 @@ def generate_star_map_video(location, when, hours, step_minutes, chart_size=DEFA
         with ProcessPoolExecutor(max_workers=cpu_count) as executor:
             for frame in executor.map(_generate_frame, args_list):
                 writer.append_data(frame)
-if __name__ == "__main__":
-    # Example usage
-    location = "New York, USA"
-    when = "2023-10-01 22:00:00"
-    chart_size = 12
-    max_star_size = 100
-
-    generate_star_map_video(location, when, hours=72, step_minutes=5, chart_size=chart_size, max_star_size=max_star_size)
