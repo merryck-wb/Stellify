@@ -162,14 +162,14 @@ def generate_star_map(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_si
 
     return fig
 
-def generate_star_map_png(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
+def generate_star_map_image(location, when, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE):
     # Generate the star map figure
     fig = generate_star_map(location, when, chart_size, max_star_size)
 
     # Save the figure to a PNG file
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
-    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
+    filename = f"Image_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
     output_path = OUTPUT_DIR / filename
     fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
     plt.close(fig)
@@ -179,7 +179,7 @@ def _generate_frame(args):
     fig = generate_star_map(location, when_str, chart_size, max_star_size)
 
     buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=150, bbox_inches='tight')
+    fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
     buf.seek(0)
     plt.close(fig)
 
@@ -196,7 +196,7 @@ def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAUL
     ]
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    filename = f"{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
+    filename = f"GIF_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
     gif_path = OUTPUT_DIR / filename
 
     cpu_count = multiprocessing.cpu_count()
@@ -204,3 +204,31 @@ def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAUL
         with ProcessPoolExecutor(max_workers=cpu_count) as executor:
             for frame in executor.map(_generate_frame, args_list):
                 writer.append_data(frame)
+
+def generate_star_map_video(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE, fps=30, codec='libx264', bitrate='5M'):
+    when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
+    total_frames = int((hours * 60) / step_minutes)
+    times = [when_datetime + timedelta(minutes=i * step_minutes) for i in range(total_frames)]
+
+    args_list = [
+        (location, t.strftime('%Y-%m-%d %H:%M:%S'), chart_size, max_star_size)
+        for t in times
+    ]
+
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    filename = f"Video_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.mp4"
+    video_path = OUTPUT_DIR / filename
+
+    cpu_count = multiprocessing.cpu_count()
+    with imageio.get_writer(video_path, fps=fps, codec=codec, bitrate=bitrate, format='FFMPEG') as writer:
+        with ProcessPoolExecutor(max_workers=cpu_count) as executor:
+            for frame in executor.map(_generate_frame, args_list):
+                writer.append_data(frame)
+if __name__ == "__main__":
+    # Example usage
+    location = "New York, USA"
+    when = "2023-10-01 22:00:00"
+    chart_size = 12
+    max_star_size = 100
+
+    generate_star_map_video(location, when, hours=72, step_minutes=5, chart_size=chart_size, max_star_size=max_star_size)
