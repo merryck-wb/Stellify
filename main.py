@@ -10,6 +10,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import requests
+import tzfpy
 from geopy import Nominatim
 from pytz import timezone, utc
 from skyfield.api import Star, load, Loader, wgs84
@@ -78,16 +79,11 @@ def get_coordinates(location):
     return coords
 
 def get_timezone(lat, lon):
-    # Use timeapi.io to get timezone from coordinates
-    url = f"https://timeapi.io/api/TimeZone/coordinate?latitude={lat}&longitude={lon}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        data = response.json()
-        return data["timeZone"]
-    except (requests.RequestException, KeyError) as e:
-        raise RuntimeError(f"Failed to retrieve timezone data")
-    
+    tz_name = tzfpy.get_tz(lat, lon)
+    if not tz_name:
+        raise ValueError(f"Timezone not found for coordinates: {lat}, {lon}")
+    return tz_name
+
 def collect_celestial_data(location, when):
     eph, stars, edges = load_data()
 
