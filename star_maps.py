@@ -166,9 +166,10 @@ def generate_star_map_image(location, when, chart_size=DEFAULT_CHART_SIZE, max_s
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
     filename = f"Image_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.png"
-    output_path = OUTPUT_DIR / filename
-    fig.savefig(output_path, format='png', dpi=1200, bbox_inches='tight')
+    file_path = OUTPUT_DIR / filename
+    fig.savefig(file_path, format='png', dpi=1200, bbox_inches='tight')
     plt.close(fig)
+    return file_path
 
 def _generate_frame(args):
     location, when_str, chart_size, max_star_size = args
@@ -193,13 +194,14 @@ def generate_star_map_gif(location, when, hours, step_minutes, chart_size=DEFAUL
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"GIF_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.gif"
-    gif_path = OUTPUT_DIR / filename
+    file_path = OUTPUT_DIR / filename
 
     cpu_count = multiprocessing.cpu_count()
-    with imageio.get_writer(gif_path, mode='I', duration=step_minutes * 60 / 10) as writer:
+    with imageio.get_writer(file_path, mode='I', duration=step_minutes * 60 / 10) as writer:
         with ProcessPoolExecutor(max_workers=cpu_count) as executor:
             for frame in executor.map(_generate_frame, args_list):
                 writer.append_data(frame)
+    return file_path
 
 def generate_star_map_video(location, when, hours, step_minutes, chart_size=DEFAULT_CHART_SIZE, max_star_size=DEFAULT_MAX_STAR_SIZE, fps=30, codec='libx264', bitrate='5M'):
     when_datetime = datetime.strptime(when, '%Y-%m-%d %H:%M:%S')
@@ -213,10 +215,11 @@ def generate_star_map_video(location, when, hours, step_minutes, chart_size=DEFA
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     filename = f"Video_{location}_{when_datetime.strftime('%Y%m%d_%H%M')}.mp4"
-    video_path = OUTPUT_DIR / filename
+    file_path = OUTPUT_DIR / filename
 
     cpu_count = multiprocessing.cpu_count()
-    with imageio.get_writer(video_path, fps=fps, codec=codec, bitrate=bitrate, format='FFMPEG') as writer:
+    with imageio.get_writer(file_path, fps=fps, codec=codec, bitrate=bitrate, format='FFMPEG') as writer:
         with ProcessPoolExecutor(max_workers=cpu_count) as executor:
             for frame in executor.map(_generate_frame, args_list):
                 writer.append_data(frame)
+    return file_path
